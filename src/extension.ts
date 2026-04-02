@@ -15,62 +15,67 @@ import * as path from "path";
 
 function resolveAikenBinary(
   workspaceFolders: readonly vscode.WorkspaceFolder[],
-  config: vscode.WorkspaceConfiguration,
-  idx: integer,
+  configuredPath: string | undefined,
 ): string {
-  const configuredPath = config.get<string>("executablePath");
-
   // 1. User/workspace config
   if (configuredPath && fs.existsSync(configuredPath)) {
+    output.appendLine(`aiken.executablePath: ${configuredPath}`);
     return configuredPath;
   }
 
   // 2. Workspace ./bin/aiken
   const binaryName = process.platform === "win32" ? "aiken.exe" : "aiken";
-  if (workspaceFolders.at(idx)) {
-    const localAiken = path.join(
-      workspaceFolders[idx].uri.fsPath,
-      "bin",
-      binaryName,
-    );
+  for (const workspaceFolder of workspaceFolders) {
+    const localAiken = path.join(workspaceFolder.uri.fsPath, "bin", binaryName);
     if (fs.existsSync(localAiken)) {
       return localAiken;
-    }
-  } else {
-    for (const workspaceFolder of workspaceFolders) {
-      const localAiken = path.join(
-        workspaceFolder.uri.fsPath,
-        "bin",
-        binaryName,
-      );
-      if (fs.existsSync(localAiken)) {
-        return localAiken;
-      }
     }
   }
 
   // 3. Fallback PATH
   return binaryName;
 }
-
-vscode.workspace.onDidChangeConfiguration((e) => {
-  if (
-    e.affectsConfiguration("aiken.executablePath") ||
-    e.affectsConfiguration("aiken.workspaceFolderIdx")
-  ) {
-    vscode.window.showInformationMessage("Reload to apply Aiken config");
-  }
-});
+const output = vscode.window.createOutputChannel("Aiken");
 
 let client: LanguageClient | undefined;
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
-export function activate(_context: vscode.ExtensionContext) {
+export async function activate(_context: vscode.ExtensionContext) {
+  _context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (
+        e.affectsConfiguration("aiken.executablePath") ||
+        e.affectsConfiguration("aiken.workspaceFolderIdx")
+      ) {
+        output.appendLine("Reload to apply Aiken config");
+        // vscode.window.showInformationMessage("Reload to apply Aiken config");
+      }
+    }),
+  );
+
   const workspaceFolders = vscode.workspace.workspaceFolders || [];
-  if (workspaceFolders) {
+  output.appendLine("Aiken extension activated");
+  // vscode.window.showInformationMessage("Aiken extension activated");
+
+  if (workspaceFolders.length > 0) {
+    workspaceFolders.forEach((f, i) => {
+      output.appendLine(`workspace[${i}]: ${f.uri.fsPath}`);
+    });
+
     const config = vscode.workspace.getConfiguration("aiken");
-    const idx = config.get<integer>("workspaceFolderIdx") || -1;
+    output.appendLine(`config: ${JSON.stringify(config)}`);
+    const idx = config.get<number>("workspaceFolderIdx") || -1;
+    output.appendLine(`aiken.workspaceFolderIdx: ${idx}`);
+    let execPath = config.get<string>("executablePath");
+    if (execPath?.includes("${workspaceFolder}")) {
+      const folder =
+        idx >= 0 && workspaceFolders[idx]
+          ? workspaceFolders[idx]
+          : workspaceFolders[0];
+
+      execPath = execPath.replace("${workspaceFolder}", folder.uri.fsPath);
+    }
 
     let clientOptions: LanguageClientOptions = {
       documentSelector: [{ scheme: "file", language: "aiken" }],
@@ -78,7 +83,9 @@ export function activate(_context: vscode.ExtensionContext) {
         fileEvents: [
           vscode.workspace.createFileSystemWatcher(
             new vscode.RelativePattern(
-              idx >= 0 ? workspaceFolders[idx] : workspaceFolders[0],
+              idx >= 0 && workspaceFolders[idx]
+                ? workspaceFolders[idx]
+                : workspaceFolders[0],
               "aiken.toml",
             ),
           ),
@@ -86,8 +93,8 @@ export function activate(_context: vscode.ExtensionContext) {
       },
     };
 
-    const resolved = resolveAikenBinary(workspaceFolders, config, idx);
-    console.log("Using Aiken binary:", resolved);
+    const resolved = resolveAikenBinary(workspaceFolders, execPath);
+    output.appendLine(`aiken path: ${resolved}`);
 
     let serverOptions: ServerOptions = {
       command: resolved,
@@ -104,12 +111,13 @@ export function activate(_context: vscode.ExtensionContext) {
       serverOptions,
       clientOptions,
     );
+    await client.start();
 
-    client.start();
+    _context.subscriptions.push(client);
   }
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {
-  return client?.stop();
+export async function deactivate() {
+  return await client?.stop();
 }
