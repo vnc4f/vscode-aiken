@@ -1,8 +1,8 @@
 {
-  "name": "aiken",
-  "displayName": "Aiken",
+  "name": "aiken-vnc4f",
+  "displayName": "Aiken (vnc4f)",
   "description": "Aiken language support for Visual Studio Code",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "publisher": "txpipe",
   "icon": "images/aiken.png",
   "repository": {
@@ -67,6 +67,21 @@
       },
       "[uplc]": {
         "editor.formatOnSave": true
+      }
+    },
+    "configuration": {
+      "title": "Aiken",
+      "properties": {
+        "aiken.executablePath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to Aiken binary"
+        },
+        "aiken.workspaceFolderIdx": {
+          "type": "integer",
+          "default": -1,
+          "description": "Workspace folder index force choose"
+        }
       }
     }
   },
