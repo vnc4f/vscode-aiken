@@ -3,7 +3,6 @@
 /*eslint curly: ["error", "multi-line"]*/
 import * as vscode from "vscode";
 import {
-  integer,
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
@@ -19,7 +18,7 @@ function resolveAikenBinary(
 ): string {
   // 1. User/workspace config
   if (configuredPath && fs.existsSync(configuredPath)) {
-    output.appendLine(`aiken.executablePath: ${configuredPath}`);
+    output.appendLine(`Using aiken.executablePath`);
     return configuredPath;
   }
 
@@ -48,15 +47,16 @@ export async function activate(_context: vscode.ExtensionContext) {
         e.affectsConfiguration("aiken.executablePath") ||
         e.affectsConfiguration("aiken.workspaceFolderIdx")
       ) {
-        output.appendLine("Reload to apply Aiken config");
-        // vscode.window.showInformationMessage("Reload to apply Aiken config");
+        // output.appendLine("Reload to apply Aiken config");
+        vscode.window.showInformationMessage("Reload to apply Aiken config");
       }
     }),
   );
 
   const workspaceFolders = vscode.workspace.workspaceFolders || [];
-  output.appendLine("Aiken extension activated");
-  // vscode.window.showInformationMessage("Aiken extension activated");
+  // output.appendLine("Aiken extension activated");
+  // output.show();
+  vscode.window.showInformationMessage("Aiken extension activated");
 
   if (workspaceFolders.length > 0) {
     workspaceFolders.forEach((f, i) => {
@@ -64,8 +64,10 @@ export async function activate(_context: vscode.ExtensionContext) {
     });
 
     const config = vscode.workspace.getConfiguration("aiken");
-    output.appendLine(`config: ${JSON.stringify(config)}`);
-    const idx = config.get<number>("workspaceFolderIdx") || -1;
+    // output.appendLine(`config: ${JSON.stringify(config)}`);
+    const idx = parseInt(
+      config.get<number>("workspaceFolderIdx")?.toString() || "-1",
+    );
     output.appendLine(`aiken.workspaceFolderIdx: ${idx}`);
     let execPath = config.get<string>("executablePath");
     if (execPath?.includes("${workspaceFolder}")) {
